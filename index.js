@@ -15,7 +15,7 @@ var c = https.get('https://api.pinboard.in/v1/posts/all?format=json&auth_token=t
         console.log("I have " + JSON.parse(data).length + " bookmarks to check. Let´s start!");
         checkUrl(0, JSON.parse(data));
       });
-}).on("error", () => { console.log("Unable to fech bookmarks");});
+}).on("error", () => { console.log("Unable to fetch bookmarks");});
 
 
 var deleteFunction = (url, callback) => {
