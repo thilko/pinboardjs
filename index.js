@@ -1,4 +1,5 @@
 "use strict";
+const Pinboard = require("./pinboard.js");
 
-const pinboard = require("./pinboard.js");
-pinboard.scanBookmarks();
+const my = new Pinboard();
+my.scanBookmarks();

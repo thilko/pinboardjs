@@ -1,24 +1,83 @@
 "use strict";
 
-var exports = module.exports = {};
+const https = require("https");
+const http = require("http");
+const url = require("url");
 
-exports.scanBookmarks = () => {
-    const https = require("https");
-    const http = require("http");
+class Pinboard {
+    constructor(){
+      this.data = "";
+      this.deleteCounter = 0;
+      this.totalCount = 0;
+    }
+
+    httpCall(caller, json, index){
+      this.totalCount++;
+
+      const opt = {
+        hostname: url.parse(json[index].href).host,
+        path: url.parse(json[index].href).path,
+        headers: {
+          'Cache-Control': 'no-cache',
+          'User-Agent': 'Mozilla/5.0',
+          'Accept': '*/*'
+        }
+      };
+
+       const req = caller.request(opt, (result) => {
+          if(result.statusCode == 404){
+            deleteFunction(json[index].href, () => { this.checkUrl(++index, json) });
+          }else if(result.statusCode == 301 || result.statusCode == 302){
+            console.log("[" + index + "/" + json.length + "] (" + result.statusCode + ") " + json[index].href);
+            json[index].href = result.headers.location;
+            this.checkUrl(index, json);
+          }else{
+           console.log("[" + index + "/" + json.length + "] (" + result.statusCode + ") " + json[index].href);
+           result.on('error', (e) => {
+               deleteFunction(json[index].href, () => {this.checkUrl(++index, json);});
+             });
+           result.on('data', (e) => {});
+           result.on('end', (e) =>  { this.checkUrl(++index, json);});
+          }
+       }).on("error", () =>{
+           console.log("[" + index + "/" + json.length + "] (ERR) " + json[index].href);
+           this.checkUrl(++index, json);
+       });
+
+       req.end();
+    }
+
+   checkUrl(current, allLinks) {
+    if(current >= allLinks.length){
+      console.log("Checked " + totalCount + " urls");
+      console.log("Deleted " + this.deleteCounter + " urls");
+      return;
+    }
+
+   var entry = allLinks[current];
+   try {
+      if(entry.href.startsWith("https")){
+        this.httpCall(https, allLinks, current);
+      }else{
+        this.httpCall(http, allLinks, current);
+      }
+   }catch(e){
+     console.log(e);
+     console.log("unable to reach " + entry.href );
+     this.checkUrl(++current, allLinks);
+   }
+  }
+
+  scanBookmarks() {
     const apiKey = process.env.api_key;
 
-    var data = "";
-    var json;
-    var deleteCounter = 0;
-    var totalCount = 0;
-
-
     https.get('https://api.pinboard.in/v1/posts/all?format=json&auth_token=' + apiKey, (res) => {
-          res.on('data', (d) => { data += d; });
+          res.on('data', (d) => { this.data += d; });
           res.on('error', (e) => { console.error(e); });
           res.on('end', () => {
-            console.log("I have " + JSON.parse(data).length + " bookmarks to check. Let´s start!");
-            checkUrl(0, JSON.parse(data));
+            console.log("I have " + JSON.parse(this.data).length + " bookmarks to check. Let´s start!");
+
+            this.checkUrl(0, JSON.parse(this.data));
           });
     }).on("error", () => { console.log("Unable to fetch bookmarks");});
 
@@ -27,54 +86,11 @@ exports.scanBookmarks = () => {
        var deleteUrl = 'https://api.pinboard.in/v1/posts/delete?url=' + url + '&auth_token=' + apiKey;
        https.get(deleteUrl, (r) => {
          console.log("[" + index + "/" + json.length + "] (404) " + json[index].href + " (DELETED)");
-         deleteCounter++;
+         this.deleteCounter++;
          callback();
        });
     }
+  }
+}
 
-    const httpCall = (caller, json, index) => {
-      totalCount++;
-       caller.get(json[index].href, (result) => {
-          if(result.statusCode == 404){
-            deleteFunction(entry.href, () => { checkUrl(++index, json) });
-          }else if(result.statusCode == 301 || result.statusCode == 302){
-            console.log("[" + index + "/" + json.length + "] (" + result.statusCode + ") " + json[index].href);
-            json[index].href = result.headers.location;
-            checkUrl(index, json);
-          }else{
-           console.log("[" + index + "/" + json.length + "] (" + result.statusCode + ") " + json[index].href);
-           result.on('error', (e) => {
-               deleteFunction(json[index].href, () => {checkUrl(++index, json);});
-             });
-           result.on('data', (e) => {});
-           result.on('end', (e) =>  { checkUrl(++index, json);});
-          }
-       }).on("error", () =>{
-           console.log("[" + index + "/" + json.length + "] (ERR) " + json[index].href);
-           checkUrl(++index, json);
-       });
-    }
-
-    function checkUrl(current, allLinks) {
-      if(current >= allLinks.length){
-        console.log("Checked " + totalCount + " urls");
-        console.log("Deleted " + deleteCounter + " urls");
-        return;
-      }
-
-      var entry = allLinks[current];
-     try {
-        if(entry.href.startsWith("https")){
-          httpCall(https, allLinks, current);
-        }else{
-          httpCall(http, allLinks, current);
-        }
-     }catch(e){
-       console.log(e);
-       console.log("unable to reach " + entry.href );
-       checkUrl(++current, allLinks);
-     }
-    }
-
-};
-
+module.exports = Pinboard;
