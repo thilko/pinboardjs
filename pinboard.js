@@ -5,11 +5,11 @@ const http = require("http");
 const url = require("url");
 
 class Pinboard {
-    constructor(){
+    constructor(apiKey){
       this.data = "";
       this.deleteCounter = 0;
       this.totalCount = 0;
-      this.apiKey = process.env.api_key;
+      this.apiKey = apiKey;
     }
 
     httpCall(caller, json, index){
@@ -70,7 +70,6 @@ class Pinboard {
   }
 
   scanBookmarks() {
-
     https.get('https://api.pinboard.in/v1/posts/all?format=json&auth_token=' + this.apiKey, (res) => {
           res.on('data', (d) => { this.data += d; });
           res.on('error', (e) => { console.error(e); });
@@ -80,7 +79,6 @@ class Pinboard {
             this.checkUrl(0, JSON.parse(this.data));
           });
     }).on("error", () => { console.log("Unable to fetch bookmarks");});
-
 
   }
 
