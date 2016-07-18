@@ -9,6 +9,7 @@ class Pinboard {
       this.data = "";
       this.deleteCounter = 0;
       this.totalCount = 0;
+      this.apiKey = process.env.api_key;
     }
 
     httpCall(caller, json, index){
@@ -26,7 +27,7 @@ class Pinboard {
 
        const req = caller.request(opt, (result) => {
           if(result.statusCode == 404){
-            deleteFunction(json[index].href, () => { this.checkUrl(++index, json) });
+            this.deleteFunction(json, index, () => { this.checkUrl(++index, json) });
           }else if(result.statusCode == 301 || result.statusCode == 302){
             console.log("[" + index + "/" + json.length + "] (" + result.statusCode + ") " + json[index].href);
             json[index].href = result.headers.location;
@@ -34,7 +35,7 @@ class Pinboard {
           }else{
            console.log("[" + index + "/" + json.length + "] (" + result.statusCode + ") " + json[index].href);
            result.on('error', (e) => {
-               deleteFunction(json[index].href, () => {this.checkUrl(++index, json);});
+               this.deleteFunction(json, index, () => {this.checkUrl(++index, json);});
              });
            result.on('data', (e) => {});
            result.on('end', (e) =>  { this.checkUrl(++index, json);});
@@ -49,7 +50,7 @@ class Pinboard {
 
    checkUrl(current, allLinks) {
     if(current >= allLinks.length){
-      console.log("Checked " + totalCount + " urls");
+      console.log("Checked " + this.totalCount + " urls");
       console.log("Deleted " + this.deleteCounter + " urls");
       return;
     }
@@ -69,9 +70,8 @@ class Pinboard {
   }
 
   scanBookmarks() {
-    const apiKey = process.env.api_key;
 
-    https.get('https://api.pinboard.in/v1/posts/all?format=json&auth_token=' + apiKey, (res) => {
+    https.get('https://api.pinboard.in/v1/posts/all?format=json&auth_token=' + this.apiKey, (res) => {
           res.on('data', (d) => { this.data += d; });
           res.on('error', (e) => { console.error(e); });
           res.on('end', () => {
@@ -82,15 +82,16 @@ class Pinboard {
     }).on("error", () => { console.log("Unable to fetch bookmarks");});
 
 
-    var deleteFunction = (url, callback) => {
-       var deleteUrl = 'https://api.pinboard.in/v1/posts/delete?url=' + url + '&auth_token=' + apiKey;
+  }
+
+   deleteFunction(json, index, callback) {
+       var deleteUrl = 'https://api.pinboard.in/v1/posts/delete?url=' + json[index].href + '&auth_token=' + this.apiKey;
        https.get(deleteUrl, (r) => {
          console.log("[" + index + "/" + json.length + "] (404) " + json[index].href + " (DELETED)");
          this.deleteCounter++;
          callback();
        });
     }
-  }
 }
 
 module.exports = Pinboard;
